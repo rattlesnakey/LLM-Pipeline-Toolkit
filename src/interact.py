@@ -4,30 +4,13 @@ from loguru import logger
 import argparse, os
 import deepspeed
 import torch
-from utils import generate, PROMPT_DICT, LANGS
 from peft import PeftModel
-from utils import ddp_batch_generate_v2, MyGenerationConfig, ddp_batch_probing_choice, ddp_batch_probing_choice_text
-from utils import PROMPT_DICT, LANGS, Mydataset, str2bool, instruction_preprocess, smart_tokenizer_and_embedding_resize
+from utils import MyGenerationConfig
+from utils import generate, PROMPT_DICT, str2bool
 
-
-
-# def generate_prompt(instruction, input=None):
-#     if input:
-#         return f"""Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.
-# ### Instruction:
-# {instruction}
-# ### Input:
-# {input}
-# ### Response:"""
-#     else:
-#         return f"""Below is an instruction that describes a task. Write a response that appropriately completes the request.
-# ### Instruction:
-# {instruction}
-# ### Response:"""
 
 
 def generate_prompt(prompt_type, instruction, input=''):
-    # if lang == 'en':
     if input:
         return PROMPT_DICT[prompt_type]['prompt_input'].format_map({'instruction':instruction, 'input':input})
     else:
@@ -38,12 +21,9 @@ def DDP_Print(text):
     if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
         logger.info(text)
 
-#! 每次启动成一个 web 服务吧尽量
-#! 可以用 PyWebio 也可以用他们自带
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    
     parser.add_argument('--num_beams', default=4, type=int, required=False, help='beam size')
     parser.add_argument('--temperature', default=0.35, type=float, required=False, help='temperature')
     parser.add_argument('--top_p', default=0.85, type=float, required=False, help='topp')
@@ -61,11 +41,8 @@ if __name__ == '__main__':
     parser.add_argument('--lora_weights_path', type=str, default=None, help='lora weight path')
     parser.add_argument('--decoding_mode', type=str, default=None, help='decoding mode')
     
-    # parser.add_argument('--prompt', type=str, default=None, help='模型存放位置')
-    
     args = parser.parse_args()
-    # try:
-    args.cuda = torch.cuda.is_available() and not args.no_cuda  # 当用户使用GPU,并且GPU可用时
+    args.cuda = torch.cuda.is_available() and not args.no_cuda 
     
     if args.local_rank:
         device = f'cuda:{args.local_rank}' if args.cuda else 'cpu'
@@ -97,7 +74,6 @@ if __name__ == '__main__':
     model.to(device)
     
     if args.deepspeed_inference:
-        # local_rank = int(os.getenv('LOCAL_RANK', '0'))
         local_rank = args.local_rank
         world_size = int(os.getenv('WORLD_SIZE', '1'))
         DDP_Print('Using Deepspeed accelerating ...')
@@ -105,25 +81,11 @@ if __name__ == '__main__':
         
         model = deepspeed.init_inference(model, mp_size=world_size, dtype=torch.float16, replace_with_kernel_inject=True)
 
-    # while True:
-    
-
-
-    # Inputs = ['Radiographic results were compared for the time of callus formation, callus bridge formation, and bone union between the groups.',\
-    #         'Results: Time to recover walking ability and to decrease pain in the surgery region (VAS≤2) were significantly shorter in the injection group than in the non-injection group.', \
-    #         'The time of callus formation, callus bridge formation, and bone union was significantly shorter in the injection group than in the non-injection group.', \
-    #         'There were 5 cases of delayed bone union (33.3%) and 1 case of none union (6.7%) in the non-injection group and all cases obtained bone union in injection group.', \
-    #         'Conclusion: The injection group showed better clinical and radiographic results than the non-injection group after intramedullary nailing in atypical femoral fracture.', \
-    #         'Therefore, we think that teriparatide administration after intramedullary nailing could be a useful treatment option to promote bone union.']
-    # for Input in Inputs:
-    # Instruction = 'Polish the following sentence:'
     Instruction = None
     while True:
-        # try:
         if Instruction:
             not_keep = input("Weather to replace the previous instruction ? press enter if keep, else input new instruction:\n")
             if not not_keep:
-                #! don't change instruction
                 pass
             else:
                 Instruction = input("Please input the Instruction:\n")
@@ -168,12 +130,7 @@ if __name__ == '__main__':
     
         DDP_Print(f'Response:{result}')
         DDP_Print('#'*100+'\n\n\n\n')
-        # except Exception:
-        #     continue
-        
-    # except RuntimeError:
-    #     import pdb; pdb.set_trace()
-        
+
     
     
     

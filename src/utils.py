@@ -1,13 +1,8 @@
 # -*- coding: utf-8 -*-
 import json
 from torch.utils.data import Dataset, DataLoader
-import dataclasses
-import logging
-import math
 import os
 import io
-import sys
-import time
 from typing import Optional, Sequence, Union, List, Dict
 import transformers
 from tqdm import tqdm
@@ -16,20 +11,12 @@ import torch
 import numpy as np
 import shutil
 import json
-# import openai
-# from openai import openai_object
 import copy
 from transformers import GenerationConfig, pipeline
 import torch.nn.functional as F
 from peft import get_peft_model_state_dict
 from transformers import TrainerCallback, TrainingArguments, TrainerState, TrainerControl
 from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
-
-
-SELF_UNDERSTAND = {
-    'en':'Use your own words to explain the meaning and details of the following questions.',
-    'zh':'请用你自己的话来解释下面问题的含义和细节。'
-}
 
 
 LANGS = {
@@ -73,21 +60,7 @@ PROMPT_DICT = {
         )
     }
 }
-# "### Instruction:{instruction}\n\n### Response:" 
-# TASK_PROMPT = {
-#     'X_CSQA':(
-#         "Given the question: {question} \nChoose a more reasonable answer from the 5 options A, B, C, D, and E. The options are as follows:\n"
-#         "A: {A}\nB: {B}\nC: {C}\nD: {D}\nE: {E}\n"
-#         "Your output contains a total of two lines. Please output only the option letter you selected in the first line and do not output any other content. \n"
-#         "In the second line, please provide a comprehensive explanation explaining why you chose this option.\n"
-#     ),
-# }
 
-#! different_tasks_few_shot_prompt
-# 'X_CSQA_text':(
-#         "Question: {question}\n"
-#         "### Response:{answer}\n\n"
-#     ),
 EXAMPLE_PROMPT = {
     'X_CSQA_text':(
         "Question: {question}\n"
@@ -106,16 +79,7 @@ EXAMPLE_PROMPT = {
     )
 }
 
-# ANSWER_PROMPT = {
-#     'X_CSQA':(
-        
-#     )
-# }
-# 'X_CSQA_text':(
-#             "Given the question: {question} \nYou need to provide a concise and accurate answer to the question.\n"
-#         ),
-# Given the question: {question} \nYou need to provide a concise and accurate answer to the question.\n
-#! for instruction part
+
 TASK_PROMPT = {
     'no_example':{
         'X_CSQA_text':(
@@ -185,10 +149,6 @@ TASK_PROMPT = {
 
 
 
-# "Options:\n"
-#             "A: entailment\n"
-#             "B: neutral\n"
-#             "C: contradiction\n"
 def instruction_preprocess(dataset_type, line, demonstration=None, args=None):
     """
         demonstration:List[Dict]
@@ -211,9 +171,7 @@ def instruction_preprocess(dataset_type, line, demonstration=None, args=None):
 
     return instruction, input, target, options_list
 
-#TODO: sentence 的那个不是直接 question，要弄的话还得重新再写一个 prompt
-def X_CODAH(line, demonstration):
-    pass
+
 
 def X_NLI_process(line, demonstration, args):
     premise = line['premise']
@@ -334,7 +292,6 @@ def X_CSQA_process(line, demonstration, args):
             }
             
         instruction = TASK_PROMPT['use_example'][PROB_TYPE].format_map(cur_input_dict)
-        # print(instruction)
     else:
         if args.probing_text:
             cur_input_dict = {
@@ -363,7 +320,6 @@ def str2bool(v):
 
 class Mydataset(Dataset):
     def __init__(self, prompts):
-        #! option_list 已经包含到 prompts 里面去了
         self.prompts = prompts
         
 
@@ -405,16 +361,11 @@ def ddp_batch_probing_choice_text(
     **kwargs
 ):
     results = dict()
-    #TODO 这里的 dataloader 要改成把 4 个 choice text 都拼接上去形成 4 条文本
-    # accelerator.wait_for_everyone()
-    # if accelerator.is_local_main_process:
-    #     import pdb; pdb.set_trace()
-    # accelerator.wait_for_everyone()
-    #! 要弄成右边 padding
+
+    #! set padding side to right
     accelerator.print('set tokenizer padding side to right')
     tokenizer.padding_side = 'right'
     for data_tuple in tqdm(dataloader, desc='Inferencing ...', total=len(dataloader), disable=not rank):
-        # import pdb; pdb.set_trace()
         #! instructions: List[str], options_list: List[List[str]]
         idxes, instructions, options_lists = data_tuple
         idxes = idxes.tolist()
@@ -430,8 +381,6 @@ def ddp_batch_probing_choice_text(
             for cand_choice_text in cand_choice_texts:
                 whole_text = instruction + cand_choice_text
                 #! delete last token for input
-                #! 这边不对，必须在 tokenized 之后的 last token
-                # text_input = whole_text[:-1]
                 cur_text_batch.append(whole_text)
             
             
@@ -449,10 +398,6 @@ def ddp_batch_probing_choice_text(
             choice_text_lens = choice_text_lens.tolist()
             whole_cand_choice_enc = whole_cand_choice_enc['input_ids']
             
-            # accelerator.wait_for_everyone()
-            # if accelerator.is_local_main_process:
-            #     import pdb; pdb.set_trace()
-            # accelerator.wait_for_everyone()
 
             new_input_enc = {}; new_input_lens = []
             #! delete the last token
@@ -515,13 +460,8 @@ def ddp_batch_probing_choice(
     **kwargs
 ):
     results = dict()
-    #TODO 这里的 dataloader 要改成把 4 个 choice text 都拼接上去形成 4 条文本
-    # accelerator.wait_for_everyone()
-    # if accelerator.is_local_main_process:
-    #     import pdb; pdb.set_trace()
-    # accelerator.wait_for_everyone()
+
     for data_tuple in tqdm(dataloader, desc='Inferencing ...', total=len(dataloader), disable=not rank):
-        # import pdb; pdb.set_trace()
         idxes, data, options_lists = data_tuple
         idxes = idxes.tolist()
         data = data
@@ -544,7 +484,6 @@ def ddp_batch_probing_choice(
             #! json load to list type
             options_list = json.loads(options_lists[i])
             
-            
             option_probs = []
             for option in options_list:
                 #! add_special_token= False, other wise it will prepend bos token
@@ -553,94 +492,17 @@ def ddp_batch_probing_choice(
                 
             #! have to use .float() for using softmax
             option_probs = torch.nn.functional.softmax(torch.tensor(option_probs).float(), dim=0).detach().cpu().numpy()
-            
             pred = options_list[np.argmax(option_probs)]
-            
             results.update({f'{idx}': f"{pred}"})
-        # accelerator.wait_for_everyone()
-        # if accelerator.is_local_main_process:
-        #     import pdb; pdb.set_trace()
-        # accelerator.wait_for_everyone()
+
             
             
     return results
 
 
 
-def ddp_batch_generate_v3(
-    tokenizer,
-    model,
-    device,
-    dataloader, 
-    accelerator,
-    temperature: float = 0.35,
-    top_p: float = 0.85,
-    top_k: int = 40,
-    num_beams:int = 4,
-    repetition_penalty: float = 1.2, 
-    max_new_tokens: int = 256,
-    do_sample: bool = False,
-    rank: int = 0,
-    args=None,
-    **kwargs
-):
-    """
-        for prompt tuning generation
-    """
-    generation_config = GenerationConfig(
-        temperature=temperature,
-        top_p=top_p,
-        top_k=top_k,
-        num_beams=num_beams,
-        repetition_penalty=repetition_penalty,
-        do_sample=do_sample,
-        **kwargs,
-    )
-    
-    
-    results = dict()
-    
-    for data_tuple in tqdm(dataloader, desc='Inferencing ...', total=len(dataloader), disable=not rank):
-        # import pdb; pdb.set_trace()
-        idxes, data = data_tuple
-        idxes = idxes.tolist()
-        data = list(data)
-        if args.use_special_attention_mechanism:
-            inputs = tokenizer(data, return_tensors="pt", padding=True, return_length=True).to(device)
-            instruction_lens = inputs.pop('length')
-            # inputs['instruction_lens'] = instruction_lens.tolist()
-            inputs['instruction_lens'] = instruction_lens.to(device)
-            input_ids = inputs['input_ids']
-            
-            padding_lengths = []
-            for input_id in input_ids:
-                padding_indice = torch.where(input_id == tokenizer.pad_token_id)[0].tolist()
-                if padding_indice:
-                    padding_length = padding_indice[-1] + 1
-                else:
-                    padding_length = 0
-                padding_lengths.append(padding_length)
-            
-            inputs['padding_lengths'] = torch.tensor(padding_lengths).to(device)
-        else:
-            inputs = tokenizer(data, return_tensors="pt", padding=True).to(device)
-        generation_output = model.generate(
-                **inputs,
-                generation_config=generation_config,
-                return_dict_in_generate=True,
-                max_new_tokens=max_new_tokens,
-            )
 
-        s = generation_output.sequences
-        outputs = tokenizer.batch_decode(s, skip_special_tokens=True, clean_up_tokenization_spaces=True)
-        
-        for idx, output in zip(idxes, outputs):
-            #! index: result 
-            results.update({f'{idx}': f"{output}"})
-            
-    return results
-
-def ddp_batch_generate_v2(
+def ddp_batch_generate(
     tokenizer,
     model,
     device,
@@ -670,7 +532,6 @@ def ddp_batch_generate_v2(
     results = dict()
     
     for data_tuple in tqdm(dataloader, desc='Inferencing ...', total=len(dataloader), disable=not rank):
-        # import pdb; pdb.set_trace()
         idxes, data = data_tuple
         idxes = idxes.tolist()
         data = list(data)
@@ -694,114 +555,6 @@ def ddp_batch_generate_v2(
             
     return results
 
-#! change prompt to dataloader
-def ddp_batch_generate(
-    tokenizer,
-    model,
-    device,
-    dataloader, 
-    accelerator,
-    temperature: float = 0.35,
-    top_p: float = 0.85,
-    top_k: int = 40,
-    num_beams:int = 4,
-    repetition_penalty: float = 1.2, 
-    max_new_tokens: int = 256,
-    do_sample: bool = False,
-    rank: int = 0,
-    **kwargs
-):
-    
-    # if device == 'cuda:0':
-    #     import pdb; pdb.set_trace()
-    # accelerator.wait_for_everyone()
-    generation_config = GenerationConfig(
-        temperature=temperature,
-        top_p=top_p,
-        top_k=top_k,
-        num_beams=num_beams,
-        repetition_penalty=repetition_penalty,
-        max_new_tokens=max_new_tokens,
-        do_sample=do_sample,
-        **kwargs,
-    )
-    
-    generate_pipeline = pipeline(
-        task="text-generation", 
-        model=model, 
-        tokenizer=tokenizer, 
-        device=device
-    )
-    
-    results = dict()
-    # tqdm(generator, desc='Inferencing ...', total=len(data))
-    for data_tuple in tqdm(dataloader, desc='Inferencing ...', total=len(dataloader), disable=not rank):
-        # import pdb; pdb.set_trace()
-        idxes, data = data_tuple
-        idxes = idxes.tolist()
-        data = list(data)
-        generator = generate_pipeline(
-            data,
-            clean_up_tokenization_spaces=True,
-            generation_config=generation_config
-        )
-        with torch.no_grad():
-            for idx, output in zip(idxes, generator):
-                #! index: result 
-                results.update({f'{idx}': f"{output[0]['generated_text']}"})
-            
-    return results
-
-def batch_generate(
-    tokenizer, 
-    model,
-    device,
-    prompts: List[str], 
-    temperature: float = 0.35,
-    top_p: float = 0.85,
-    top_k: int = 40,
-    num_beams:int = 4,
-    repetition_penalty: float = 1.2, 
-    max_new_tokens: int = 256,
-    do_sample: bool = False,
-    batch_size:int = 4,
-    **kwargs
-):
-    generation_config = GenerationConfig(
-        temperature=temperature,
-        top_p=top_p,
-        top_k=top_k,
-        num_beams=num_beams,
-        repetition_penalty=repetition_penalty,
-        max_new_tokens=max_new_tokens,
-        do_sample=do_sample,
-        **kwargs,
-    )
-    
-    generate_pipeline = pipeline(
-        task="text-generation", 
-        model=model, 
-        tokenizer=tokenizer, 
-        device=device
-    )
-    
-    dataset = Mydataset(prompts)
-    # truncation=True, 
-    #     max_length=256, #! batch truncation max_length
-    results = []
-    
-    with torch.no_grad():
-        generator = generate_pipeline(
-            dataset, 
-            batch_size=batch_size, #! 这边传了 batch size 
-            clean_up_tokenization_spaces=True,
-            generation_config=generation_config
-        )
-        # generation_config=generation_config
-        for idx, output in enumerate(tqdm(generator, desc='Inferencing ...', total=len(data))):
-            results.append(output[0]['generated_text'])
-            
-    return results
 
 def generate(
     tokenizer, 
@@ -834,21 +587,10 @@ def generate(
             generation_config=generation_config,
             max_new_tokens=max_new_tokens,
         )
-    # if args.num_beams > 1:
-    #     generate_ids = generate_ids[0]
     result = tokenizer.batch_decode(generate_ids, skip_special_tokens=True, clean_up_tokenization_spaces=True)[0]
     return result
 
 
-
-#! DDP 的时候不要用
-def safe_save_model_for_hf_trainer(trainer: transformers.Trainer, output_dir: str):
-    """Collects the state dict and dump to disk."""
-    state_dict = trainer.model.state_dict()
-    if trainer.args.should_save:
-        cpu_state_dict = {key: value.cpu() for key, value in state_dict.items()}
-        del state_dict
-        trainer._save(output_dir, state_dict=cpu_state_dict)  # noqa
 
 
 
@@ -926,7 +668,7 @@ def smart_tokenizer_and_embedding_resize(
         output_embeddings[-num_new_tokens:] = output_embeddings_avg
 
 
-
+#TODO: Adding Peft save model callback
 class SavePeftModelCallback(TrainerCallback):
     def on_save(
         self,
@@ -935,12 +677,7 @@ class SavePeftModelCallback(TrainerCallback):
         control: TrainerControl,
         **kwargs,
     ):
-        checkpoint_folder = os.path.join(args.output_dir, f"{PREFIX_CHECKPOINT_DIR}-{state.global_step}")
-
-        # peft_model_path = os.path.join(checkpoint_folder, "adapter_model")
-        #! currently not for zero3
-        # kwargs["model"].save_pretrained(peft_model_path)
-        
+        checkpoint_folder = os.path.join(args.output_dir, f"{PREFIX_CHECKPOINT_DIR}-{state.global_step}")      
         
         old_state_dict = kwargs["model"].state_dict
         #! replace only with peft param
@@ -965,15 +702,3 @@ class SavePeftModelCallback(TrainerCallback):
             shutil.rmtree(global_ckpt_dir_path)
         return control
 
-
-# trainer = Seq2SeqTrainer(
-#     args=training_args,
-#     model=model,
-#     train_dataset=common_voice["train"],
-#     eval_dataset=common_voice["test"],
-#     data_collator=data_collator,
-#     # compute_metrics=compute_metrics,
-#     tokenizer=processor.feature_extractor,
-#     callbacks=[SavePeftModelCallback],
-# )
-# model.config.use_cache = False  # silence the warnings. Please re-enable for inference!
