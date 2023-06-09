@@ -1,0 +1,28 @@
+{
+  "results": {
+    "cb": {
+      "acc": 0.4642857142857143,
+      "acc_stderr": 0.06724777654937658,
+      "f1": 0.29135243841126196
+    },
+    "rte": {
+      "acc": 0.5451263537906137,
+      "acc_stderr": 0.029973636495415255
+    }
+  },
+  "versions": {
+    "cb": 1,
+    "rte": 0
+  },
+  "config": {
+    "model": "hf-causal-experimental",
+    "model_args": "pretrained=/apdcephfs/share_916081/effidit_shared_data/chillzhang/pretrained_models/gpt2/gpt2-base",
+    "num_fewshot": 5,
+    "batch_size": "4",
+    "device": "cuda:0",
+    "no_cache": true,
+    "limit": null,
+    "bootstrap_iters": 100000,
+    "description_dict": {}
+  }
+}

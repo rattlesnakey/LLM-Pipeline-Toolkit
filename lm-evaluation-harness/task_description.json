@@ -1,0 +1,7 @@
+{
+    "piqa":"Please provide a concise and accurate answer to the following question.",
+    "arc_easy":"Please provide a concise and accurate answer to the following question.",
+    "arc_challenge":"Please provide a concise and accurate answer to the following question.",
+    "rte": "Please answer the following question with either 'True' or 'False'.",
+    "cb": "Please select the most appropriate response to the following question from the options provided: 'True', 'False', or 'Neither'."
+}
