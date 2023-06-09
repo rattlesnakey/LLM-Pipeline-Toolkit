@@ -19,7 +19,7 @@ pip install -r requirements.txt
 
 **Docker**
 
-I Have pack up an docker image, which get pull from docker hub 
+I Have pack up an docker image, which can get pull from docker hub 
 
 ```shell
 docker pull hengyuan/llm:v4
